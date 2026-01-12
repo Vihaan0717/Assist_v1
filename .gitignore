@@ -1,0 +1,13 @@
+# Ignore the huge virtual environment folder
+venv/
+
+# Ignore compiled python files
+__pycache__/
+*.pyc
+
+# Ignore the database (we want to start fresh on other machines)
+memory_db/
+chroma.sqlite3
+
+# Ignore sensitive keys (IMPORTANT)
+config.py
