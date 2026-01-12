@@ -5,19 +5,16 @@ import speech_recognition as sr
 import os
 import numpy as np
 import time
+from PIL import Image
+from ultralytics import YOLO # <--- NEW IMPORT
 
 class Senses:
     def __init__(self):
         self.recognizer = sr.Recognizer()
         
-        # --- PATIENCE SETTINGS ---
-        # 1. Wait 2 full seconds of silence before deciding you are done
+        # Audio Settings
         self.recognizer.pause_threshold = 2.0 
-        
-        # 2. Don't cut off if you speak softly for a split second
         self.recognizer.non_speaking_duration = 0.5 
-        
-        # 3. Dynamic sensitivity (Adjusts to your room automatically)
         self.recognizer.dynamic_energy_threshold = True
         
         try:
@@ -27,10 +24,16 @@ class Senses:
             print("⚠️ [Senses] No Microphone found.")
             self.mic = None
 
+        # --- NEW: LOAD LOCAL AI MODEL ---
+        print("🧠 [Senses] Loading Local Vision Model (YOLO)...")
+        # 'yolov8n.pt' is the "Nano" model (Fastest for CPU)
+        self.model = YOLO('yolov8n.pt') 
+
         self.known_face_encodings = []
         self.known_face_names = []
         self.load_owner_face()
 
+    # ... (Keep load_owner_face and listen functions exactly the same) ...
     def load_owner_face(self):
         if os.path.exists("me.jpg"):
             try:
@@ -52,23 +55,24 @@ class Senses:
         print(f"👂 Listening ({lang_map.get(lang, lang)})...")
         
         with self.mic as source:
-            # Listen to background noise for 1 second (longer = better accuracy)
-            self.recognizer.adjust_for_ambient_noise(source, duration=1.0)
+            # Adjust for noise (Reduced duration to make it faster)
+            self.recognizer.adjust_for_ambient_noise(source, duration=0.5)
             
             try:
-                # timeout=None: Wait forever for you to START speaking
-                # phrase_time_limit=None: Let you speak for as long as you want
-                audio = self.recognizer.listen(source, timeout=None, phrase_time_limit=None)
-                print("⚡ processing...")
+                # TIMEOUTS ADDED TO PREVENT STUCK LOOP
+                # timeout=5: If you say nothing for 5 seconds, it stops waiting.
+                # phrase_time_limit=10: Stops recording after 10 seconds (prevents fan noise loop).
+                audio = self.recognizer.listen(source, timeout=5, phrase_time_limit=10)
                 
+                print("⚡ processing...")
                 command = self.recognizer.recognize_google(audio, language=lang)
                 print(f"🗣️ You said: '{command}'")
                 return command.lower()
             
             except sr.WaitTimeoutError:
+                # This happens if you didn't say anything. We just return empty to loop again.
                 return ""
             except sr.UnknownValueError:
-                # print("⚠️ Unclear") # Muted to keep logs clean
                 return ""
             except sr.RequestError:
                 print("⚠️ [Error] Network Issue.")
@@ -77,10 +81,10 @@ class Senses:
                 return ""
 
     def see(self):
+        # (Keep your existing Face ID code)
         video_capture = cv2.VideoCapture(0)
         if not video_capture.isOpened(): return None
         found_person = None
-        # Reduced frames to 5 for faster startup
         for i in range(5): 
             ret, frame = video_capture.read()
             if not ret: continue
@@ -97,3 +101,46 @@ class Senses:
             if found_person: break
         video_capture.release()
         return found_person
+
+    # --- NEW: LOCAL OBJECT DETECTION ---
+    def identify_objects_locally(self):
+        """ Scans the room using Offline AI (YOLO) """
+        video_capture = cv2.VideoCapture(0)
+        if not video_capture.isOpened(): return []
+        
+        print("👀 Scanning environment (Offline)...")
+        ret, frame = video_capture.read()
+        video_capture.release()
+        
+        if not ret: return []
+
+        # Run YOLO Inference (This is the magic line)
+        results = self.model(frame, verbose=False) # verbose=False hides junk logs
+        
+        detected_items = []
+        
+        # Parse results
+        for result in results:
+            for box in result.boxes:
+                class_id = int(box.cls[0]) # Get ID (e.g., 0)
+                confidence = float(box.conf[0]) # Get Confidence (e.g., 0.85)
+                
+                # Only count if AI is >50% sure
+                if confidence > 0.5:
+                    item_name = self.model.names[class_id] # Convert 0 -> "Person"
+                    detected_items.append(item_name)
+        
+        # Remove duplicates (e.g. don't say "cup, cup, cup")
+        return list(set(detected_items))
+
+    # (Keep take_snapshot for Gemini use later)
+    def take_snapshot(self):
+        video_capture = cv2.VideoCapture(0)
+        if not video_capture.isOpened(): return None
+        print("📸 Taking a picture...")
+        ret, frame = video_capture.read()
+        video_capture.release()
+        if ret:
+            rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            return Image.fromarray(rgb_frame)
+        return None

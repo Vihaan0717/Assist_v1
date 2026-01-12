@@ -59,33 +59,79 @@ def run_jarvis():
                 else:
                     speak("వెళ్తున్నాను.", lang="te") 
                 break
-            
+        
             # --- 2. HANDS (Tools) ---
-            elif "time" in command or "samayam" in command or "టైమ్" in command: 
+            # TIME
+            elif "time" in command or "samayam" in command or "టైమ్" in command or "టైం" in command: 
                 speak(f"Time is {tools.get_time()}", lang=current_lang)
                 continue 
 
+            # BATTERY
             elif "battery" in command or "charge" in command:
                 speak(f"Power is {tools.get_battery()}", lang=current_lang)
                 continue
-
-            elif "play" in command:
-                song = command.replace("play", "").strip()
-                speak(f"Playing {song}", lang="en")
-                tools.play_video(song)
+            
+            # WEATHER (Token-Free)
+            elif "weather" in command or "climate" in command or "వాతావరణం" in command:
+                speak("Checking report...", lang=current_lang)
+                
+                # Default City
+                target_city = "Rajamahendravaram"
+                
+                # Extract City Name: "weather in Hyderabad" -> "Hyderabad"
+                if " in " in command:
+                    target_city = command.split(" in ")[1].strip()
+                elif "lo " in command: # Telugu syntax "Hyderabad lo"
+                    target_city = command.split(" lo ")[0].strip()
+                
+                report = tools.get_weather(target_city)
+                speak(f"{target_city}: {report}", lang=current_lang)
                 continue
-            # ADDED VARIATIONS FOR TELUGU SPELLING
-            elif "time" in command or \
-                 "samayam" in command or \
-                 "టైమ్" in command or \
-                 "టైం" in command:  # <--- Added this variation
-                speak(f"Time is {tools.get_time()}", lang=current_lang)
-                continue 
 
-            elif "battery" in command or \
-                 "charge" in command or \
-                 "చార్జింగ్" in command:
-                speak(f"Power is {tools.get_battery()}", lang=current_lang)
+            # NEWS (Token-Free)
+            elif "news" in command or "headlines" in command or "వార్తలు" in command:
+                speak("Fetching headlines...", lang=current_lang)
+                news = tools.get_news()
+                speak(f"Top stories: {news}", lang=current_lang)
+                continue
+
+            # --- VISION 1: LOCAL (FAST SCAN - YOLO) ---
+            # Zero Gemini Tokens. Runs on CPU.
+            elif ("scan" in command) or \
+                 ("what is around" in command) or \
+                 ("objects" in command) or \
+                 ("ఇక్కడ ఏముంది" in command) or \
+                 ("ఏమి ఉన్నాయి" in command): 
+                
+                speak("Scanning...", lang=current_lang)
+                items = senses.identify_objects_locally()
+                
+                if items:
+                    item_string = ", ".join(items)
+                    if current_lang == "en-IN":
+                        speak(f"I can see: {item_string}", lang="en")
+                    elif current_lang == "te-IN":
+                        speak(f"నాకు {item_string} కనిపిస్తున్నాయి.", lang="te")
+                else:
+                    speak("I don't see any objects I know.", lang=current_lang)
+                continue
+
+            # --- VISION 2: CLOUD (DESCRIPTION - GEMINI) ---
+            elif ("describe" in command) or \
+                 ("explain" in command) or \
+                 ("వివరించు" in command) or \
+                 ("చూడు" in command) or \
+                 ("కన" in command): # <--- CHANGED: Catches "Kanapadu", "Kanabaduthundi", etc.
+                
+                speak("Looking...", lang=current_lang)
+                photo = senses.take_snapshot()
+                
+                if photo:
+                    lang_instruction = f" (Reply in {current_lang} language script)"
+                    response = think(command + lang_instruction, image_input=photo)
+                    speak(response, lang=current_lang)
+                else:
+                    speak("Camera error.", lang=current_lang)
                 continue
 
             # --- 3. BRAIN (Thinking) ---

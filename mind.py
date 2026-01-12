@@ -3,39 +3,45 @@ import google.generativeai as genai
 from config import GEMINI_API_KEY
 
 genai.configure(api_key=GEMINI_API_KEY)
+
+# Use the 2.0-flash model (It can see images!)
 model = genai.GenerativeModel('gemini-2.0-flash') 
 
-def think(user_text, context_text=""):
+def think(user_text, context_text="", image_input=None):
     try:
-        # --- FIXED SYSTEM PROMPT ---
+        # System Instructions
         system_instruction = """
         You are J.A.R.V.I.S., an advanced AI assistant.
-        
         RULES:
-        1. LANGUAGE: You are TRILINGUAL. You speak English, Telugu, and Hindi fluently.
-           - If the user speaks Telugu, reply in Telugu Script.
-           - If the user speaks Hindi, reply in Hindi Script.
-           - If the user speaks English, reply in English.
-        
-        2. PERSONALITY: Witty, efficient, and brief (1-2 sentences max). Call the user "Boss".
-        
-        3. MEMORY: IGNORE the provided memory context unless the user specifically asks for it or it is critical to the current topic.
+        1. LANGUAGE: Trilingual (English, Telugu, Hindi). Match the user's script.
+        2. PERSONALITY: Witty, efficient, brief (1-2 sentences).
+        3. VISION: If an image is provided, describe what you see in it relevant to the user's question.
         """
 
-        prompt = f"""
-        {system_instruction}
+        # Prepare the input list (Text + Image if available)
+        input_content = [system_instruction]
         
-        RELEVANT MEMORY (Use only if needed): {context_text}
+        if context_text:
+            input_content.append(f"MEMORY: {context_text}")
         
-        USER SAID: {user_text}
+        input_content.append(f"USER SAID: {user_text}")
         
-        YOUR RESPONSE:
-        """
+        # This is the part that handles the photo
+        if image_input:
+            input_content.append(image_input) # Add the actual image data
+            input_content.append("INSTRUCTION: Analyze this image based on the user's question.")
+
+        # Generate content
+        response = model.generate_content(input_content)
         
-        response = model.generate_content(prompt)
+        # Clean up response
         clean_text = response.text.replace("*", "").replace("#", "").strip()
         return clean_text
         
     except Exception as e:
         print(f"⚠️ [Mind Error] {e}")
-        return "I am unable to process that request at the moment, Sir."
+        return "I am unable to see that clearly, Sir."
+
+# Test it independently
+if __name__ == "__main__":
+    print(think("System check."))
