@@ -8,23 +8,31 @@ import time
 
 class Senses:
     def __init__(self):
-        # 1. Setup Ears (Microphone)
         self.recognizer = sr.Recognizer()
+        
+        # --- PATIENCE SETTINGS ---
+        # 1. Wait 2 full seconds of silence before deciding you are done
+        self.recognizer.pause_threshold = 2.0 
+        
+        # 2. Don't cut off if you speak softly for a split second
+        self.recognizer.non_speaking_duration = 0.5 
+        
+        # 3. Dynamic sensitivity (Adjusts to your room automatically)
+        self.recognizer.dynamic_energy_threshold = True
+        
         try:
             self.mic = sr.Microphone()
+            print("✅ [Senses] Microphone connected.")
         except:
             print("⚠️ [Senses] No Microphone found.")
             self.mic = None
 
-        # 2. Setup Eyes (Load your face)
         self.known_face_encodings = []
         self.known_face_names = []
         self.load_owner_face()
 
     def load_owner_face(self):
-        """ Loads 'me.jpg' safely using OpenCV. """
         if os.path.exists("me.jpg"):
-            print("👁️ [Senses] Loading your face data...")
             try:
                 img = cv2.imread("me.jpg")
                 if img is None: return
@@ -34,72 +42,58 @@ class Senses:
                 if len(encodings) > 0:
                     self.known_face_encodings.append(encodings[0])
                     self.known_face_names.append("Boss") 
-                    print("✅ [Senses] Face learned successfully.")
-            except Exception as e:
-                print(f"⚠️ [Senses] Error loading 'me.jpg': {e}")
-        else:
-            print("⚠️ [Senses] 'me.jpg' not found.")
+            except Exception:
+                pass
 
-    def listen(self):
-        """ Listens for 5 seconds """
+    def listen(self, lang="en-IN"):
         if not self.mic: return ""
-        print("👂 Listening...")
+        
+        lang_map = {"en-IN": "English", "te-IN": "Telugu", "hi-IN": "Hindi"}
+        print(f"👂 Listening ({lang_map.get(lang, lang)})...")
+        
         with self.mic as source:
-            self.recognizer.adjust_for_ambient_noise(source)
+            # Listen to background noise for 1 second (longer = better accuracy)
+            self.recognizer.adjust_for_ambient_noise(source, duration=1.0)
+            
             try:
-                audio = self.recognizer.listen(source, timeout=5, phrase_time_limit=5)
-                command = self.recognizer.recognize_google(audio)
+                # timeout=None: Wait forever for you to START speaking
+                # phrase_time_limit=None: Let you speak for as long as you want
+                audio = self.recognizer.listen(source, timeout=None, phrase_time_limit=None)
+                print("⚡ processing...")
+                
+                command = self.recognizer.recognize_google(audio, language=lang)
                 print(f"🗣️ You said: '{command}'")
                 return command.lower()
-            except:
+            
+            except sr.WaitTimeoutError:
+                return ""
+            except sr.UnknownValueError:
+                # print("⚠️ Unclear") # Muted to keep logs clean
+                return ""
+            except sr.RequestError:
+                print("⚠️ [Error] Network Issue.")
+                return ""
+            except Exception as e:
                 return ""
 
     def see(self):
-        """ Checks camera for 3 seconds to find a face """
         video_capture = cv2.VideoCapture(0)
-        if not video_capture.isOpened():
-            return None
-
-        print("👀 Looking for you (Hold still)...")
+        if not video_capture.isOpened(): return None
         found_person = None
-
-        # LOOP: Try 15 times (approx 3 seconds)
-        for i in range(15):
+        # Reduced frames to 5 for faster startup
+        for i in range(5): 
             ret, frame = video_capture.read()
             if not ret: continue
-
-            # Convert to RGB & Integers
             rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            rgb_frame = np.array(rgb_frame, dtype=np.uint8)
-            
-            # Look for faces
             try:
                 face_locations = face_recognition.face_locations(rgb_frame)
                 face_encodings = face_recognition.face_encodings(rgb_frame, face_locations)
-
                 for face_encoding in face_encodings:
                     matches = face_recognition.compare_faces(self.known_face_encodings, face_encoding)
                     if True in matches:
                         found_person = "Boss"
-                        break # Stop looking if we found you!
-            except:
-                pass
-            
-            if found_person:
-                break
-            
-            # Wait a tiny bit before next check
-            time.sleep(0.1)
-        
+                        break
+            except: pass
+            if found_person: break
         video_capture.release()
         return found_person
-
-if __name__ == "__main__":
-    sense = Senses()
-    
-    # Test Eyes
-    person = sense.see()
-    print(f"📸 Result: I saw {person}")
-    
-    # Test Ears
-    text = sense.listen()
