@@ -4,6 +4,7 @@ from memory import MemorySystem
 from mind import think
 from voice import speak
 from tools import SystemTools
+from automation import SystemController
 
 def run_jarvis():
     print("🚀 [System] Initializing Jarvis...")
@@ -11,6 +12,7 @@ def run_jarvis():
     senses = Senses()
     brain = MemorySystem()
     tools = SystemTools()
+    sys_ops = SystemController()
     
     # Define this OUTSIDE the loop
     current_lang = "en-IN"
@@ -59,7 +61,29 @@ def run_jarvis():
                 else:
                     speak("వెళ్తున్నాను.", lang="te") 
                 break
-        
+            
+            # MEDIA CONTROLS
+            elif "play" in command or "pause" in command or "stop music" in command:
+                speak("Media control.", lang=current_lang)
+                sys_ops.media_control("play")
+                continue
+
+            elif "next song" in command or "next track" in command:
+                sys_ops.media_control("next")
+                continue
+
+            elif "previous song" in command:
+                sys_ops.media_control("previous")
+                continue
+
+            elif "volume up" in command or "increase volume" in command:
+                sys_ops.media_control("volume up")
+                continue
+
+            elif "volume down" in command or "decrease volume" in command:
+                sys_ops.media_control("volume down")
+                continue
+            
             # --- 2. HANDS (Tools) ---
             # TIME
             elif "time" in command or "samayam" in command or "టైమ్" in command or "టైం" in command: 
@@ -132,6 +156,31 @@ def run_jarvis():
                     speak(response, lang=current_lang)
                 else:
                     speak("Camera error.", lang=current_lang)
+                continue
+
+            # [IMPORTANT] This must be BEFORE the Brain!
+            elif ("open" in command) or ("launch" in command):
+                app_name = command.replace("open", "").replace("launch", "").strip()
+                speak(f"Opening {app_name}...", lang=current_lang)
+                sys_ops.open_app(app_name)
+                continue
+
+            elif ("close" in command) and ("window" not in command):
+                app_name = command.replace("close", "").strip()
+                speak(f"Closing {app_name}...", lang=current_lang)
+                sys_ops.close_app(app_name)
+                continue
+
+            elif ("type" in command) or ("write" in command):
+                text_to_type = command.replace("type", "").replace("write", "").strip()
+                speak("Typing...", lang=current_lang)
+                sys_ops.type_text(text_to_type)
+                continue
+            
+            elif "screenshot" in command:
+                speak("Taking screenshot.", lang=current_lang)
+                sys_ops.take_screenshot()
+                speak("Saved.", lang=current_lang)
                 continue
 
             # --- 3. BRAIN (Thinking) ---
