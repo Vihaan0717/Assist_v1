@@ -5,6 +5,7 @@ from mind import think
 from voice import speak
 from tools import SystemTools
 from automation import SystemController
+from vision_ui import HologramUI # <--- NEW IMPORT
 
 def run_jarvis():
     print("🚀 [System] Initializing Jarvis...")
@@ -13,6 +14,7 @@ def run_jarvis():
     brain = MemorySystem()
     tools = SystemTools()
     sys_ops = SystemController()
+    holo = HologramUI() # <--- NEW INITIALIZATION
     
     # Define this OUTSIDE the loop
     current_lang = "en-IN"
@@ -138,6 +140,35 @@ def run_jarvis():
                         speak(f"నాకు {item_string} కనిపిస్తున్నాయి.", lang="te")
                 else:
                     speak("I don't see any objects I know.", lang=current_lang)
+                continue
+
+            # --- VISUAL INTERFACE ---
+            elif ("visual mode" in command) or ("hologram" in command):
+                speak("Launching AR Lab...", lang=current_lang)
+                holo.start()
+                speak("Lab closed.", lang=current_lang)
+                continue
+
+            # --- ANALYSIS COMMAND (NEW) ---
+            # Triggers: "Analyze this model", "What do you think about my drawing"
+            elif ("analyze this" in command) or ("check my project" in command):
+                
+                # Check if file exists
+                import os
+                if os.path.exists("project_analysis.jpg"):
+                    speak("Analyzing your virtual project...", lang=current_lang)
+                    
+                    # Load the Saved AR Image
+                    from PIL import Image
+                    image_path = "project_analysis.jpg"
+                    img = Image.open(image_path)
+                    
+                    # Ask Gemini
+                    prompt = "I drew this in my AR lab. Analyze the structure, the 3D objects, and the drawing. Tell me what it looks like."
+                    response = think(prompt, image_input=img)
+                    speak(response, lang=current_lang)
+                else:
+                    speak("I don't see a project saved. Press 'S' in visual mode first.", lang=current_lang)
                 continue
 
             # --- VISION 2: CLOUD (DESCRIPTION - GEMINI) ---
